@@ -908,18 +908,21 @@ std::string	Server::executeCmd(int i, int clientFd)
 		{
 			std::cout << BLUE1 << "CASE 12\n" << END;
 			std::cout << "On lance KILL" << std::endl;
+			commandObj->KILL(clientFd, this);
 			break ;
 		}
 		case 13 :
 		{
 			std::cout << BLUE1 << "CASE 13\n" << END;
 			std::cout << "On lance KILL" << std::endl;
+			commandObj->KILL(clientFd, this);
 			break ;
 		}
 		case 14 :
 		{
 			std::cout << BLUE1 << "CASE 14\n" << END;
 			std::cout << "On lance NOTICE" << std::endl;
+			commandObj->NOTICE(clientFd, this);
 			break ;
 		}
 		case 15 :

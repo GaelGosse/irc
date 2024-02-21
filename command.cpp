@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   command.cpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: gael <gael@student.42.fr>                  +#+  +:+       +#+        */
+/*   By: ggosse <ggosse@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/01/25 15:33:59 by mlamarcq          #+#    #+#             */
-/*   Updated: 2024/02/20 20:17:03 by gael             ###   ########.fr       */
+/*   Updated: 2024/02/21 08:29:23 by ggosse           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -910,7 +910,11 @@ int		command::PRIVMSG(client *client1, Server *serv)
 		(*it)->sendPrivMsg(client1, to_send);
 	}
 	else
+	{
 		std::cout << BACK_RED << "-------------------- not on to channel ----------------------- " << RST << std::endl;
+		message = XERR_NOTONCHANNEL(client1->getNickName(), "KICK");
+		return (send(client1->getsocketFd(), message.c_str(), message.length() ,0));
+	}
 	(void)client1;
 	(void)serv;
 	return (check);
@@ -984,7 +988,6 @@ int	command::PART(client *client1, Server *serv)
 	}
 	return (0);
 }
-
 
 int	command::handleCmd(client *client1, Server *serv, std::string cmd)
 {
@@ -1099,11 +1102,11 @@ int	command::handleCmd(client *client1, Server *serv, std::string cmd)
 	return (check);
 }
 
-
 int	command::OPER(int fd, Server* serv)
 {
 	size_t						i = 0;
 	client*						client_target;
+	client*						client_emit = serv->findClientBySocket(fd);
 	std::string					message;
 	std::vector<std::string>	temp;
 
@@ -1115,31 +1118,39 @@ int	command::OPER(int fd, Server* serv)
 		i++;
 	}
 
+	if (temp.size() != 1 && temp.size() != 2)
+	{
+		message = XERR_NEEDMOREPARAMS(client_emit->getNickName(), "KICK");
+		return (send(client_emit->getsocketFd(), message.c_str(), message.length() ,0));
+	}
+
 	if (temp.size() == 2)
 	{
 		if (!temp[0].empty())
 		{
 			client_target = serv->findClientByNickName(temp[0]);
 			if (!client_target)
-				std::cout << "no users : " << temp[0] << std::endl;
-				//  define ERR_NOSUCHNICK(nick, errNick)				RPL_PREFIX("401", nick) + " " + errNick + " :No such nick" + CLRF
-		}
-
-		if (client_target)
-		{
-			if (temp[1] == "abc")
 			{
-				client_target->setOperatorStatus(true);
-				std::cout << GREEN << client_target->getNickName() << " is oper ! " << RST << std::endl;
+				std::cout << "no users : " << temp[0] << std::endl;
+				message = XERR_NOSUCHNICK(client_target->getNickName(), temp[0]);
+				return (send(client_target->getsocketFd(), message.c_str(), message.length(), 0));
 			}
 			else
 			{
-				message = ERR_PASSWDMISMATCH(client_target->getNickName());
-				return (send(client_target->getsocketFd(), message.c_str(), message.length() ,0));
+				if (temp[1] == "abc")
+				{
+					client_target->setOperatorStatus(true);
+					std::cout << GREEN << client_target->getNickName() << " is oper ! " << RST << std::endl;
+				}
+				else
+				{
+					std::cout << RED << client_target->getNickName() << " has wrong pswd " << RST << std::endl;
+					message = ERR_PASSWDMISMATCH(client_target->getNickName());
+					return (send(client_target->getsocketFd(), message.c_str(), message.length() ,0));
+				}
 			}
 		}
-		else
-			std::cout << "OPER: No user found" << std::endl;
+
 	}
 	(void)fd;
 	(void)i;
@@ -1151,16 +1162,25 @@ int	command::WALLOPS(int fd, Server* serv)
 {
 	size_t						i = 0;
 	std::string					message;
+	std::string					content;
+	client*						client_emit = serv->findClientBySocket(fd);
 	std::vector<std::string>	temp = parsTemp(serv->M_cmdMap["wallops"]);
 	client						*me = serv->findClientBySocket(fd);
 
 	// ERR_NEEDMOREPARAMS
 	std::cout << BOLD_YELLOW << " - WALLOPS - " << RST << std::endl;
+
+	if (temp.size() < 1)
+	{
+		message = XERR_NEEDMOREPARAMS(client_emit->getNickName(), "KICK");
+		return (send(client_emit->getsocketFd(), message.c_str(), message.length() ,0));
+	}
+
+	content = temp[0];
+	i = 1;
 	while (i < temp.size())
 	{
-		message += temp[i];
-		if (i + 1 != temp.size())
-			message += " ";
+		content += temp[i];
 		i++;
 	}
 	if (me->getOperatorStatus())
@@ -1169,11 +1189,10 @@ int	command::WALLOPS(int fd, Server* serv)
 		{
 			if ((*it)->getOperatorStatus() && (*it)->getsocketFd() != fd)
 			{
+				message = content; // je n'ai trouve aucun rpl valable
 				std::cout << "message: " << message << std::endl;
 				send((*it)->getsocketFd(), message.c_str(), message.length(), 0);
 			}
-				// send((*it)->getsocketFd(), message.c_str(), message.length(), MSG_NOS
-			// return (send)
 		}
 	}
 	else
@@ -1186,10 +1205,15 @@ int	command::WALLOPS(int fd, Server* serv)
 int	command::KICK(int fd, Server* serv)
 {
 	size_t								i = 0;
+	size_t								i_target = 0;
+	size_t								i_chan = 0;
 	std::string							message;
+	std::string							content;
 	std::vector<std::string>			temp = parsTemp(serv->M_cmdMap["KICK"]);
-	client*								client_target = serv->findClientByNickName(temp[1]);
+	client*								client_target;
 	client*								client_emit = serv->findClientBySocket(fd);
+	std::cout << "client_emit->getNickName(): " << client_emit->getNickName() << std::endl;
+	std::cout << "client_emit->getOperatorStatus(): " << client_emit->getOperatorStatus() << std::endl;
 	std::map<client *, bool>::iterator	target_rm;
 	bool								emit_found = false;
 	bool								target_found = false;
@@ -1200,11 +1224,21 @@ int	command::KICK(int fd, Server* serv)
 		std::cout << YELLOW "kick[" << i << "] = " << temp[i] << END << std::endl;
 		i++;
 	}
+
+	content = temp[0];
+	i = 1;
+	while (i < temp.size())
+	{
+		content += temp[i];
+		i++;
+	}
+
 	if (temp.size() < 1)
 	{
-		message = ERR_NEEDMOREPARAMS(client_target->getNickName(), "KICK");
-		return (send(client_target->getsocketFd(), message.c_str(), message.length() ,0));
+		message = XERR_NEEDMOREPARAMS(client_emit->getNickName(), "KICK");
+		return (send(client_emit->getsocketFd(), message.c_str(), message.length() ,0));
 	}
+	client_target = serv->findClientByNickName(temp[1]);
 	if (client_target && client_emit->getOperatorStatus() == true)
 	{
 		for (std::list<channel *>::iterator it = serv->M_listOfChannels.begin(); it != serv->M_listOfChannels.end(); it++)
@@ -1225,17 +1259,23 @@ int	command::KICK(int fd, Server* serv)
 				std::cout << "(*ite).first->getNickName(): " << WHITE << (*ite).first->getNickName() << RST << std::endl;
 				if ((*ite).first->getNickName() == client_target->getNickName() && emit_found)
 				{
-					std::cout << GREEN << "target here" << RST << std::endl;
+					std::cout << GREEN << "    target found" << RST << std::endl;
 					target_rm = ite;
 					target_found = true;
 				}
+				i_target++;
 			}
 			std::cout << "before erase" << std::endl;
 			if (target_found)
-				(*it)->_listOfClients.erase(target_rm);
+			{
+				std::cout << "targetting..." << std::endl;
+				(*it)->eraseCLientFromChan(client_target, "reason");
+				// serv->M_listOfChannels[i_chan]->_listOfClients.erase(target_rm);
+				std::cout << "erased !" << std::endl;
+				// (*it)->_listOfClients.erase(target_rm); // mael serv->erase() comme il ma dit
+			}
 			else
 				std::cout << RED << "target not found" << RST << std::endl;
-			std::cout << "after erase" << std::endl;
 			for (std::map<client *, bool>::iterator abc = (*it)->_listOfClients.begin(); abc != (*it)->_listOfClients.end(); abc++)
 			{
 				std::cout << "  (*abc.first->getNickName(): " <<   (*abc).first->getNickName() << std::endl;
@@ -1243,54 +1283,95 @@ int	command::KICK(int fd, Server* serv)
 			std::cout << BACK_RED << "end" << RST << std::endl;
 			std::cout << std::endl;
 			// return (send((*it)->getsocketFd(), message.c_str(), message.length(), MSG_NOSIGNAL));
+			i_chan++;
 		}
 	}
+	else
+		std::cout << "client_emit->getOperatorStatus(): " << client_emit->getNickName() << " " << client_emit->getOperatorStatus() << std::endl;
 	(void)emit_found;
 	(void)client_emit;
 	(void)message;
 	(void)fd;
 	(void)serv;
 	return (0);
-	// ERR_NOSUCHCHANNEL
-	// ERR_BADCHANMASK
-	// ERR_CHANOPRIVSNEEDED
-	// ERR_NOTONCHANNEL
 }
 
 int	command::KILL(int fd, Server* serv)
 {
 	size_t						i = 0;
-	// std::string					message;
+	std::string					message;
+	std::string					content;
 	std::vector<std::string>	temp;
 	int							fd_target = 0;
+	client*						client_emit = serv->findClientBySocket(fd);
+	client*						client_target;
 
-	temp = parsTemp(serv->M_cmdMap["KILL"]);
+	temp = parsTemp(serv->M_cmdMap["kill"]);
 	std::cout << BOLD_YELLOW << " - KILL - " << END << std::endl;
 	while (i < temp.size())
 	{
 		std::cout << YELLOW "kill[" << i << "] = " << temp[i] << END << std::endl;
 		i++;
 	}
-	// fd_target =
-	// if ()
-	// {
-	// 	quit(fd_target, serv);
-	// }
+
+	content = temp[0];
+	i = 1;
+	while (i < temp.size())
+	{
+		content += temp[i];
+		i++;
+	}
+
+	if (i == 1 || i == 2)
+	{
+		client_target = serv->findClientByNickName(temp[0]);
+		std::cout << "temp[0]: " << temp[0] << std::endl;
+		if (!client_target)
+		{
+			message = XERR_NOSUCHNICK(client_emit->getNickName(), temp[0]);
+			return (send(client_emit->getsocketFd(), message.c_str(), message.length(), 0));
+		}
+		else if (client_emit->getOperatorStatus() == false)
+		{
+			message = XERR_NOPRIVILEGES(client_emit->getNickName());
+			return (send(client_emit->getsocketFd(), message.c_str(), message.length(), 0));
+		}
+		else
+		{
+			std::cout << "	quit" << std::endl;
+			if (i == 1)
+				message = XQUIT(client_target->getNickName(), client_emit->getNickName(), "");
+			else
+				message = XQUIT(client_target->getNickName(), client_emit->getNickName(), content);
+			fd_target = client_target->getsocketFd();
+			this->QUIT(fd_target, serv);
+			return (send(client_emit->getsocketFd(), message.c_str(), message.length(), 0));
+		}
+	}
+	else
+	{
+		message = XERR_NEEDMOREPARAMS(client_emit->getNickName(), "kill");
+		return (send(client_emit->getsocketFd(), message.c_str(), message.length(), 0));
+	}
 	(void)fd_target;
 	(void)fd;
 	(void)serv;
 	return (0);
 	// ERR_NOPRIVILEGES
-	// ERR_NEEDMOREPARAMS
 	// ERR_NOSUCHNICK
+	// ERR_NEEDMOREPARAMS
+
 	// ERR_CANTKILLSERVER
 }
 
 int	command::NOTICE(int fd, Server* serv)
 {
 	size_t						i = 0;
-	// std::string					message;
+	std::string					message;
+	std::string					content;
 	std::vector<std::string>	temp;
+	client*						client_target;
+	client*						client_emit = serv->findClientBySocket(fd);
 
 	temp = parsTemp(serv->M_cmdMap["NOTICE"]);
 	std::cout << BOLD_YELLOW << " - NOTICE - " << END << std::endl;
@@ -1300,11 +1381,41 @@ int	command::NOTICE(int fd, Server* serv)
 		i++;
 	}
 
+	content = temp[0];
+	i = 1;
+	while (i < temp.size())
+	{
+		content += temp[i];
+		i++;
+	}
+
+	if (i < 1)
+	{
+		message = ERR_NEEDMOREPARAMS(client_emit->getNickName(), "KICK");
+		return (send(client_emit->getsocketFd(), message.c_str(), message.length() ,0));
+	}
+	else
+	{
+		client_target = serv->findClientByNickName(temp[0]);
+		for (std::list<channel *>::iterator it = serv->M_listOfChannels.begin(); it != serv->M_listOfChannels.end(); it++)
+		{
+			std::cout << GREEN << "(*it)->getName(): " << (*it)->getName() << RST<< std::endl;
+			for (std::map<client *, bool>::iterator ite = (*it)->_listOfClients.begin(); ite != (*it)->_listOfClients.end(); ite++)
+			{
+				std::cout << "(*ite).first->getNickName(): " << CYAN << (*ite).first->getNickName() << RST << std::endl;
+				if ((*ite).first->getNickName() == client_target->getNickName())
+				{
+					message = XNOTICE(client_target->getNickName(), client_emit->getNickName(), "localhost", );
+					return (send(client_emit->getsocketFd(), message.c_str(), message.length() ,0));
+				}
+			}
+		}
+	}
+
 	(void)fd;
 	(void)serv;
 	return (0);
 	// ERR_NORECIPIENT
-	// ERR_NOTEXTTOSEND
 	// ERR_CANNOTSENDTOCHAN
 	// ERR_NOTOPLEVEL
 	// ERR_WILDTOPLEVEL

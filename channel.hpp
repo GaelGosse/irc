@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   channel.hpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: gael <gael@student.42.fr>                  +#+  +:+       +#+        */
+/*   By: ggosse <ggosse@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/01/25 15:33:59 by mlamarcq          #+#    #+#             */
-/*   Updated: 2024/02/19 12:49:30 by gael             ###   ########.fr       */
+/*   Updated: 2024/02/21 07:04:16 by ggosse           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -57,6 +57,7 @@ class channel {
 		void		setOperators(client *client1);
 		void		setNewPassWord(std::string pass, std::string name, std::string username, std::string mode);
 		void		clearPassWord(std::string name, std::string username, std::string mode);
+		void		eraseCLientFromChan(client *client1, std::string reason);
 
 		int			enterPassword(void) const;
 

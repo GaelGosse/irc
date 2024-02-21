@@ -308,7 +308,7 @@ int	channel::setChannelFirstTime(client *client1, Server *serv, std::vector<std:
 void		channel::changeIsInviteOn(std::string name, std::string username, std::string mode)
 {
 	std::string message;
-	
+
 	if (name.empty())
 	{
 		std::cout << "NO CLIENT NAME" << std::endl;
@@ -329,7 +329,7 @@ void		channel::changeIsInviteOn(std::string name, std::string username, std::str
 void		channel::changeIsInviteOff(std::string name, std::string username, std::string mode)
 {
 	std::string message;
-	
+
 	if (name.empty())
 	{
 		std::cout << "NO CLIENT NAME" << std::endl;
@@ -483,7 +483,7 @@ void	channel::setClientLimit(std::string name, std::string username, std::string
 	res = std::atoi(nb.c_str());
 	this->_clientLimit = res;
 	message = MODE_CHANNEL_CLIENTLIMIT(name, username, this->getName(), mode, nb);
-	this->sendToAllChan(message); 
+	this->sendToAllChan(message);
 	return ;
 }
 
@@ -626,5 +626,66 @@ void	channel::welcomeInChanMessage(client *client1)
 		std::cout << "ERROR SENDING IN WELCOME CHAN" << std::endl;
 		return ;
 	}
+	return ;
+}
+
+
+void	channel::eraseCLientFromChan(client *client1, std::string reason)
+{
+	std::string message, tmp;
+	std::map<client *, bool>::iterator found_it = this->_listOfClients.find(client1);
+	std::map<client *, bool>::iterator it = this->_listOfClients.begin();
+	std::map<client *, bool>::iterator ite = this->_listOfClients.end();
+
+
+	while (it != ite)
+	{
+		std::cout << PURPLE << "-------------------ON FAIT UN PRINT DU CLIENT TROUVE DANS ERASE CLIENT FROM CHAT-----------------------" << END << std::endl;
+		std::cout << "LE NICK NAME = " << it->first->getNickName() << std::endl;
+		std::cout << "LE REAL NAME = " << it->first->getRealName() << std::endl;
+		std::cout << "LE USER NAME = " << it->first->getUserName() << std::endl;
+		std::cout << "LE HOST NAME = " << it->first->getHostName() << std::endl;
+		std::cout << "LE MODE = " << it->first->getMode() << std::endl;
+		std::cout << "LE MESSAGE DE BIENVENU A ETE ENVOYE (1 = oui) = " << it->first->isWelcomeMessageSent() << std::endl;
+		std::cout << "LE SOCKET FD = " << it->first->getsocketFd() << std::endl;
+		std::cout << "LE PORT = " << it->first->getPort() << std::endl;
+		std::cout << "L'ADRESSE IP = " << it->first->getIp() << std::endl;
+		std::cout << PURPLE << "-------------------FIN DU PRINT CLIENT TROUVE-----------------------" << END << std::endl;
+		it++;
+	}
+
+	if (found_it != ite)
+	{
+		this->_listOfClients.erase(client1);
+	}
+	std::map<client *, bool>::iterator cit = this->_listOfClients.begin();
+	std::map<client *, bool>::iterator cite = this->_listOfClients.end();
+	while (cit != cite)
+	{
+		std::cout << RED << "-------------------ON FAIT UN PRINT DU CLIENT TROUVE DANS ERASE CLIENT FROM CHAT-----------------------" << END << std::endl;
+		std::cout << "LE NICK NAME = " << cit->first->getNickName() << std::endl;
+		std::cout << "LE REAL NAME = " << cit->first->getRealName() << std::endl;
+		std::cout << "LE USER NAME = " << cit->first->getUserName() << std::endl;
+		std::cout << "LE HOST NAME = " << cit->first->getHostName() << std::endl;
+		std::cout << "LE MODE = " << cit->first->getMode() << std::endl;
+		std::cout << "LE MESSAGE DE BIENVENU A ETE ENVOYE (1 = oui) = " << cit->first->isWelcomeMessageSent() << std::endl;
+		std::cout << "LE SOCKET FD = " << cit->first->getsocketFd() << std::endl;
+		std::cout << "LE PORT = " << cit->first->getPort() << std::endl;
+		std::cout << "L'ADRESSE IP = " << cit->first->getIp() << std::endl;
+		std::cout << RED << "-------------------FIN DU PRINT CLIENT TROUVE-----------------------" << END << std::endl;
+		cit++;
+	}
+	// if (reason.empty())
+	// {
+	// 	tmp = "";
+	// 	message = KICK(client1->getNickName(), client1->getUserName(), this->getName(), client1->getNickName(), tmp);
+	// 	send(client1->getsocketFd(), message.c_str(), message.length(), 0);
+	// }
+	// else
+	// {
+	// 	message = KICK(client1->getNickName(), client1->getUserName(), this->getName(), client1->getNickName(), reason);
+	// 	send(client1->getsocketFd(), message.c_str(), message.length(), 0);
+	// }
+	(void)reason;
 	return ;
 }
